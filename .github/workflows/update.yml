@@ -1,52 +1,64 @@
 # By zhyi828 @ 2021-11-14
----
+# Updated by Doubao @ 2025-07-01
 name: Sync with MobileModels
 on:
-  workflow_dispatch: # To allow manual runs
+  workflow_dispatch:  # 允许手动触发
   schedule:
-    - cron: '43 10 * * *'
+    - cron: '43 10 * * *'  # UTC 时间每天 10:43 执行
 
 jobs:
-   Task:
+  sync-task:
     runs-on: ubuntu-latest
-#    if: github.event.repository.owner.id == github.event.sender.id  # 自己点的 start
     steps:
-    - name: Checkout repository and submodules
-      uses: actions/checkout@v2
-      with:
-        submodules: true
-        token: ${{ secrets.GITHUB_TOKEN }}
-    - name: Git Sumbodule Update
-      run: |
-        git pull --recurse-submodules
-        git submodule update --remote --recursive
-    - name: Set up Python #安装python
-      uses: actions/setup-python@v1
-      with:
-        python-version: 3.13
-    - name: Install requirements
-      run: |
-        pip install -r requirements.txt
-    - name: Update MobileModels
-      run: |
-        cd MobileModels
-        ls
-        git log
-        echo "LATEST_COMMIT=$(git log -1 --format="%H")" >> $GITHUB_ENV
-        cd ..
-    - name: Run
-      run: |
-        echo `date +"%Y-%m-%d %H:%M:%S"` begin
-        python phoneModel.py
-        git status
-#        git diff
-    - name: Commit # 提交更新, fork后请自行修改user信息
-      run: |
-        git config --global user.email yuaihen@live.com
-        git config --global user.name wcdxg
-        git add .
-        git diff-index --quiet HEAD || git commit -m "Sync with MobileModels $LATEST_COMMIT" -a
-    - name: Push changes
-      uses: ad-m/github-push-action@master
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }} # fork后自行配置GITHUB_TOKEN
+      - name: Checkout repository
+        uses: actions/checkout@v4  # 更新到最新版本
+        with:
+          submodules: recursive  # 递归更新子模块
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # 获取完整的提交历史
+
+      - name: Set up Python
+        uses: actions/setup-python@v5  # 更新到最新版本
+        with:
+          python-version: '3.10'  # 使用 LTS 版本，3.13 可能尚未广泛支持
+          cache: 'pip'  # 缓存 pip 依赖
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Update MobileModels submodule
+        id: submodule
+        run: |
+          cd MobileModels
+          git pull origin master  # 更新子模块到最新提交
+          echo "LATEST_COMMIT=$(git log -1 --format="%H")" >> $GITHUB_ENV
+          echo "SUBMODULE_CHANGED=$(git diff-index --name-only HEAD | grep -q 'MobileModels' && echo 'true' || echo 'false')" >> $GITHUB_ENV
+          cd ..
+
+      - name: Run synchronization script
+        if: env.SUBMODULE_CHANGED == 'true'  # 仅当子模块有更新时执行
+        run: |
+          echo "[$(date +'%Y-%m-%d %H:%M:%S')] Starting synchronization..."
+          python phoneModel.py
+          git status
+
+      - name: Commit changes
+        if: env.SUBMODULE_CHANGED == 'true'  # 仅当子模块有更新时提交
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add .
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git commit -m "Sync with MobileModels: ${LATEST_COMMIT}" -a
+          else
+            echo "No changes to commit"
+          fi
+
+      - name: Push changes
+        if: env.SUBMODULE_CHANGED == 'true'  # 仅当子模块有更新时推送
+        uses: ad-m/github-push-action@v0.6.0  # 使用固定版本
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref_name }}  # 推送到当前分支    
