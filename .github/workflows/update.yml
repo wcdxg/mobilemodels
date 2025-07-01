@@ -1,5 +1,4 @@
 # By zhyi828 @ 2021-11-14
-# Updated by Doubao @ 2025-07-01
 name: Sync with MobileModels
 on:
   workflow_dispatch:  # 允许手动触发
@@ -47,8 +46,8 @@ jobs:
       - name: Commit changes
         if: env.SUBMODULE_CHANGED == 'true'  # 仅当子模块有更新时提交
         run: |
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
+          git config --global user.email "yuaihen@live.com"
+          git config --global user.name "wcdxg"
           git add .
           if [[ -n "$(git status --porcelain)" ]]; then
             git commit -m "Sync with MobileModels: ${LATEST_COMMIT}" -a
